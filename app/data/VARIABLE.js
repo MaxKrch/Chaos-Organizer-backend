@@ -8,11 +8,11 @@ const VARIABLE = {
 				MAX_SIZE: 1,
 			},
 		},
-		{
-			NAME: 'poster',
-			MAX_SIZE: 1,
-			MAX_COUNT: 5,
-		},
+		// {
+		// 	NAME: 'poster',
+		// 	MAX_SIZE: 1,
+		// 	MAX_COUNT: 5,
+		// },
 		{
 			NAME: 'audio',
 			MAX_SIZE: 7,
@@ -41,8 +41,9 @@ const VARIABLE = {
 		},
 		USER: {
 			NOTES:	'notes.json',
-			LINKS: 'links.json',
+			FILES: 'files.json',
 			TOKENS: 'tokens.json',
+			TAGS: 'tags.json'
 		}
 	},
 	TOKEN_SECRET_KEY: `banana`,

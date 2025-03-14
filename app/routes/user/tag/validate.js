@@ -1,20 +1,10 @@
 const koaRouter = require('koa-router');
 const tagValidateRouter = new koaRouter()
+const chekAvailableTag = require('../../../utils/tags/chekAvailableTag')
 
 tagValidateRouter.post('/user/tag/validate', async ctx => {
-	console.log('tag validate router');
-	const resp = JSON.stringify({
-		success: true,
-		error: null,
-		data: {
-			tag: {
-				id: `154`,
-				title:`545`,
-				available: true,
-			}
-		}
-	})
-	ctx.response.body = resp;
+	const response = await chekAvailableTag(ctx.request.body);
+	ctx.response.body = JSON.stringify(response)
 })
 
 module.exports = tagValidateRouter;

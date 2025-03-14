@@ -112,7 +112,7 @@ class Auth {
 			})
 
 			if(!verifiedTokenData.success || !verifiedTokenData.user) {
-				response.error = `Authentication error`;
+				response.error = `Authorization error`;
 				return response
 			}
 
@@ -144,7 +144,7 @@ class Auth {
 
 			if(verifiedTokenData.targetToken) {
 				await this.#removeFefreshTokenByTokenData({
-					token: verifiedTokenData.refreshToken,
+					token: verifiedTokenData.targetToken,
 					listTokens: verifiedTokenData.listTokens,
 					user: verifiedTokenData.decodedToken.user.id
 				})

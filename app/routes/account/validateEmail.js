@@ -1,11 +1,11 @@
 const koaRouter = require('koa-router');
 const accountValidateRouter = new koaRouter();
-const chekingAvailableEmail = require('../../utils/account/chekingAvailableEmail')
+const chekAvailableEmail = require('../../utils/account/chekAvailableEmail')
 
 accountValidateRouter.post('/account/validateemail', async ctx => {
-	const responseChekingAvailableEmail = await chekingAvailableEmail(ctx.request.body) 
+	const responseChekAvailableEmail = await chekAvailableEmail(ctx.request.body) 
 	
-	ctx.response.body = JSON.stringify(responseChekingAvailableEmail);
+	ctx.response.body = JSON.stringify(responseChekAvailableEmail);
 })
 
 module.exports = accountValidateRouter;

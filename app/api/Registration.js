@@ -70,18 +70,19 @@ class Registration {
 			await fs.mkdir(storageUser);
 			await fs.mkdir(databaseUser);
 			
-			const links = {};
+			const filesLinks = {};
 
 			this.#USER_FILE_TYPES.forEach(file => {
 				const name = file.NAME;
-				links[name] = []
+				filesLinks[name] = []
 			})
 		
-			const linksJSON = JSON.stringify(links)
+			const filesLinksJSON = JSON.stringify(filesLinks)
 
-			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.LINKS}`, linksJSON);
-			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.NOTES}`, '')
-			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.TOKENS}`, '')
+			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.FILES}`, filesLinksJSON);
+			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.NOTES}`, '');
+			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.TAGS}`, '');
+			await fs.writeFile(`${databaseUser}/${this.#FILE_NAMES.USER.TOKENS}`, '');
 
 			this.#USER_FILE_TYPES.forEach(async file => {
 				const name = file.NAME;

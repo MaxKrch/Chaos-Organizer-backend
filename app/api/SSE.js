@@ -3,63 +3,93 @@ const { streamEvents } = require('http-event-stream');
 
 const clients = {}
 
-const addClientToList = (user, client) => {
+const addClientToList = (user, clientObj, idOldClient) => {	
 	const targetClientsList = clients[user]
 		? clients[user]
 		: []
+	
+	if(idOldClient)	{
+		const oldClient = targetClientsList.find(client => client.id === idOldClient)
+		if(oldClient) {
+			oldClient.client.close();
+			const indexOldClient = targetClientsList.indexOf(oldClient);
 
-	targetClientsList.push(client)
-	clients[user] = targetClientsList;
+			if(indexOldClient > -1) {
+				targetClientsList.splice(indexOldClient, 1)
+			}
+		}
+	}
+	
+	targetClientsList.push(clientObj)
+	clients[user] = targetClientsList;	
 }
 	
 const connectNewClient = async (ctx) => {  
 	const fetchEventsSince = async (lastEventId) => {
 		return []
 	}
-	const user = ctx.request.body.user;
+	
+	const id = uuid.v4()   
+	const idNewClient = uuid.v4()   
+	const { user, id: idOldClient } = ctx.request.body;
 
-	return streamEvents(ctx.req, ctx.res, {      
+	return streamEvents(ctx.req, ctx.res, { 
 		async fetch(lastEventId) {
 			return fetchEventsSince(lastEventId);
 		},
 	
 		stream(client) {
-			addClientToList(user, client);
-			return () => removeClientFromList(user, client)
+			const clientObj = {
+				id: idNewClient,
+				client
+			}
+			client.sendEvent({
+				event: `connect`,
+				data: JSON.stringify({
+					id: idNewClient,
+				}),
+				id,
+			})
+			addClientToList(user, clientObj, idOldClient);
+			return () => removeClientFromList(user, clientObj)
 		}
 	})
 }
 	
-const removeClientFromList = (user, client) => {
+const removeClientFromList = (user, clientObj) => {
 	const targetClientsList = clients[user];
 	if(!targetClientsList) {
-		console.log(`User not found`);
 		return;
 	}
 
-	const indexTargetClient = targetClientsList.indexOf(client);
+	const indexTargetClient = targetClientsList.indexOf(clientObj);
 	if(indexTargetClient < 0) {
-		console.log(`Client not found`);
+		return;
 	}
-	
+
 	targetClientsList.splice(indexTargetClient, 1);
 }
 
 const sendEventToClients = (data) => {
-	const { user, event, body } = data;
+	const { user, event, body, exclude = null } = data;
 	const targetClientsList = clients[user];
-	
+
 	if(!targetClientsList) {
-		console.log(`User not found`);
 		return;
 	}
 
-	const formatedBody = body.replace(/\s/g, '')
-	targetClientsList.forEach(client => client.sendEvent({
-		event: event,
-    data: JSON.stringify(formatedBody),
-    id: uuid.v4() 
-  }))
+	const JSONbody = JSON.stringify(body)
+	const id = uuid.v4() 
+
+	targetClientsList.forEach(clientObj => {
+		if(exclude === clientObj.id) return;
+
+		clientObj.client.sendEvent({
+			event: event,
+    	data: JSONbody,
+ 	  	id,
+  	})
+	})
 }
 
 module.exports = {

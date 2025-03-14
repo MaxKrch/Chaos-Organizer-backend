@@ -2,13 +2,54 @@ const path = require('path')
 const uuid = require('uuid')
 const fs = require('fs')
 const { USER_FILE_TYPES, FILE_NAMES, PATHS } = require('../data/VARIABLE.js')
+const sliceNotesArray = require('../helpers/sliceNotesArray')
 
 class File {
 	static #USER_FILE_TYPES = USER_FILE_TYPES; 
 	static #PATHS = PATHS;
 	static #FILE_NAMES = FILE_NAMES;
 
-	static async saveFilesToServer(files, user) {
+	static async getFileNotesFromServer(data) {
+		const response = {
+			success: false,
+			error: null,
+			notes: null
+		}
+		
+		try {
+			const userFileLinksObj = await this.#loadUserFileLinks(data.user);
+
+			if (!userFileLinksObj.success) {
+				response.error = `Fail load file links`;
+				return response;
+			}
+
+			const targetFileLinksArray = userFileLinksObj.links[data.category] 
+				? userFileLinksObj.links[data.category]
+				: []
+
+			response.notes = targetFileLinksArray.length === 0
+				? []
+				:	sliceNotesArray({
+						start: data.start,
+						end: data.end,
+						count: data.count,
+						notes: targetFileLinksArray,
+					})
+
+			response.success = true;
+
+			return response;
+
+		} catch (err) {
+			console.log(err)
+			response.error = `Unknown error`;
+
+			return response
+		} 
+	}
+
+	static async saveFilesToServer(files, user, note) {		
 		const response = {
 			success: false,
 			error: null,
@@ -16,28 +57,25 @@ class File {
 			savedFiles: null,
 		}
 
-		if(!files) {
-			response.error = `Файлы не получены`;
-			return response;
-		}
-
 		try {
-			const tempListUploadedFiles = []
-			const linksSavedFilesObj = await this.#loadListLinksUser(user)
+			const tempListUploadedFiles = []	
+
+			const linksSavedFilesObj = await this.#loadUserFileLinks(user)
 
 			if(!linksSavedFilesObj.success) {
 				response.error = linksSavedFilesObj.error;
 				return response;
 			}
-	
+
 			const linksUserFiles = linksSavedFilesObj.links;
+
 			const countAvailableForSaveFiles = this.#getCountAvailableForSaveFiles(linksUserFiles);
 
 			for(let key in files) {
 				const file = files[key];	
 				const tempFileName = file.newFilename;
 				const name = file.originalFilename;
-				
+		
 				const type = this.#getMimeTypeFile(file.mimetype);
 				const ext = this.#getExtensionFile(name, type);
 
@@ -65,22 +103,31 @@ class File {
 
 				const fileObj = {
 					id,
-					_path: relativeFilePath,
-					link: publicFilePath,
-					name,
+					note,
+					// _path: relativeFilePath,
+					src: publicFilePath,
+					title: name,
 				}
 
 				const fileTempObj = {
-					file: fileObj,
+					file: {
+						id: fileObj.id,
+						src: fileObj.src,
+						title: fileObj.title,
+					},
 					tempName: tempFileName,
 					type,
+				}
+
+				if(!linksUserFiles[type]) {
+					linksUserFiles[type] = []
 				}
 
 				linksUserFiles[type].push(fileObj);
 			 	tempListUploadedFiles.push(fileTempObj);
 			}
 
-			const isUpdatedLinksUser = await this.#saveListLinksUser(user, linksUserFiles)
+			const isUpdatedLinksUser = await this.#saveUserFilesLinks(user, linksUserFiles)
 
 			if(!isUpdatedLinksUser.success) {
 				tempListUploadedFiles.forEach(async item => {
@@ -99,32 +146,66 @@ class File {
 		}
 	} 
 
-	static async getFilesFromServer(user, type, lastId) {
+
+	static async removeNoteAttachment(data) {
 		const response = {
 			success: false,
 			error: null,
-			links: []
 		}
 
-		try {
-// 			const linksUserFilesObj = await 
-// 			протестить вариант с видео и аудио
-// //загрузить файлы, найии по индексу, взять пред 10, 
-		} catch (err) {
-			response.error = `Ошибка получения файлов с сервера`
-		} finally {
+		try {		
+			const linksUserFilesObj = await this.#loadUserFileLinks(data.user);
+
+			if(!linksUserFilesObj.success) {
+				response.error = linksUserFilesObj.error;
+				return response
+			}
+
+		 	const linksUserFiles = linksUserFilesObj.links;
+
+			for(let key in data.note.attachment) {
+				const targetFilesArray = data.note.attachment[key];
+
+				for(let file of targetFilesArray) {
+					const isRemovedFile = await this.#deleteFileFromServer(file.src);
+					if(!isRemovedFile.success) {
+						response.error = `Fail remove file`;
+						return response;
+					}
+
+					const indexTargetFile = linksUserFiles[key].findIndex(item => item.id === file.id);
+					if(indexTargetFile > -1) linksUserFiles[key].splice(indexTargetFile, 1)
+				}
+			}
+		
+
+		 	const isSavedUserLinks = await this.#saveUserFilesLinks(data.user, linksUserFiles);
+
+			if(!isSavedUserLinks.success) {
+				response.error = `Fail saved links`
+				return response; 
+			}
+
+			response.success = true;
+
 			return response;
-		}
+
+		} catch (err) {
+			console.log(err)
+			response.error = `Unknown error`
+			
+			return response;
+		} 
 	}
 
-	static async removeFileFromServer(user, type, id) {
+	static async removeFile(data) {
 		const response = {
 			success: false,
 			error: null,
 		}
 
 		try {
-			const linksUserFilesObj = await this.#loadListLinksUser(user);
+			const linksUserFilesObj = await this.#loadUserFileLinks(data.user);
 
 			if(!linksUserFilesObj.success) {
 				response.error = linksUserFilesObj.error;
@@ -132,33 +213,38 @@ class File {
 			}
 
 			const linksUserFiles = linksUserFilesObj.links;
-			const linksUserFilesCurrentType = linksUserFiles[type];
-			const targetFile = linksUserFilesCurrentType.find(file => file.id === id);
-			const indexTargetFile = linksUserFilesCurrentType.indexOf(targetFile);
-			const isRemovedFile = await this.#deleteFileFromServer(targetFile._path);
+			const linksUserFilesCurrentType = linksUserFiles[data.file.type];
+			const targetFile = linksUserFilesCurrentType.find(file => file.id === data.file.id);
+			
+			if(targetFile) {
+				const indexTargetFile = linksUserFilesCurrentType.indexOf(targetFile);
+				const isRemovedFile = await this.#deleteFileFromServer(targetFile.src);
 
-			if(!isRemovedFile.success) {
-				response.error = isRemovedFile.error;
-				return response;
+				if(!isRemovedFile.success) {
+					response.error = isRemovedFile.error;
+					return response;
+				}
+
+				linksUserFilesCurrentType.splice(indexTargetFile, 1);
+
+				const isUpdatedLinksUser = await this.#saveUserFilesLinks(data.user, linksUserFiles);
+
+				if(!isUpdatedLinksUser.success) {
+					response.error = isUpdatedLinksUser.error;
+					return response; 
+				}
 			}
-
-			linksUserFilesCurrentType.splice(indexTargetFile, 1);
-
-			const isUpdatedLinksUser = await this.#saveListLinksUser(user, linksUserFiles);
-
-			if(!isUpdatedLinksUser.success) {
-				response.error = isUpdatedLinksUser.error;
-				return response; 
-			}
-
+			
 			response.success = true;
 
-		} catch (err) {
-			response.error = `Файл не был удален с сервера`
-		
-		} finally {
 			return response;
-		}
+
+		} catch (err) {
+			console.log(err)
+			response.error = `Unknown error`
+			
+			return response;
+		} 
 	}
 
 	static #getCountAvailableForSaveFiles(arrayLinks) {
@@ -170,7 +256,9 @@ class File {
 		const countAvailableForSaveFiles = {}
 		for(let item of this.#USER_FILE_TYPES) {
 			const name = item.NAME;
-			countAvailableForSaveFiles[name] = item.MAX_COUNT - arrayLinks[name].length || 0;
+			countAvailableForSaveFiles[name] = arrayLinks[name]
+				? item.MAX_COUNT - arrayLinks[name].length
+				: item.MAX_COUNT
 		}
 
 		return countAvailableForSaveFiles;
@@ -189,7 +277,6 @@ class File {
 
 		return fileLink;
 	}
-
 
 	static #getMimeTypeFile(mimetype) {
 		const typeFileArray = mimetype.split('/')
@@ -211,7 +298,6 @@ class File {
 		return ext;
 	}
 
-
 	static #chekingFileSize(type, size) {
 		const currentFileType = this.#USER_FILE_TYPES.find(item => item.NAME === type);
 		
@@ -222,8 +308,11 @@ class File {
 		return isChek;
 	}
 
+	static async getUserFilesLinks(user) {
+		return this.#loadUserFileLinks(user);
+	}
 
-	static async #loadListLinksUser(user) {
+	static async #loadUserFileLinks(user) {
 		const response = {
 			success: false,
 			error: null,
@@ -247,7 +336,9 @@ class File {
 				})
 			})
 
-			const links = JSON.parse(linksJSON);
+			const links = linksJSON
+				? JSON.parse(linksJSON)
+				: {}
 		
 			response.links = links;
 			response.success = true;
@@ -260,7 +351,7 @@ class File {
 		}
 	}
 
-	static async #saveListLinksUser(user, links) {
+	static async #saveUserFilesLinks(user, links) {
 		const response = {
 			success: false,
 			error: null
@@ -301,7 +392,14 @@ class File {
 	}
 
 	static #createFullPathUserLinks(user) {
-		const fullPath = path.join(__dirname, `../${this.#PATHS.DB_DIRECTORY}/${this.#PATHS.STORAGE_USERS_DATA}/${user}/${this.#FILE_NAMES.USER.LINKS}`);
+		const fullPath = path.join(__dirname, `../${this.#PATHS.DB_DIRECTORY}/${this.#PATHS.STORAGE_USERS_DATA}/${user}/${this.#FILE_NAMES.USER.FILES}`);
+
+		return fullPath;
+	}
+
+	static createFullFilePath(relativePath) {
+		const relativeFilePath = `../${this.#PATHS.STATIC_DIRECTORY}${relativePath}`
+		const fullPath = path.join(__dirname, relativeFilePath);
 
 		return fullPath;
 	}
@@ -348,8 +446,8 @@ class File {
 		}
 
 		try {
-			await new Promise((resolve, reject) => {
-				const fullPath = path.join(__dirname, relativePath);
+			const result = await new Promise((resolve, reject) => {
+				const fullPath = this.createFullFilePath(relativePath)
 
 				fs.unlink(fullPath, err => reject(err));
 				resolve(fullPath)
