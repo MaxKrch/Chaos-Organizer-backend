@@ -23,7 +23,7 @@ const tagRemoveRouter = require('./user/tag/remove.js');
 const notePinRouter = require('./user/note/pin.js');
 const noteUnpinRouter = require('./user/note/unpin.js');
 const noteAddToFavoritesRouter = require('./user/note/addToFavorites.js');
-const noteRemoveFromFavoritesRouter = require('./user/note/RemoveFromFavorites.js');
+const noteRemoveFromFavoritesRouter = require('./user/note/removeFromFavorites.js');
 
 const noteCreateRouter = require('./user/note/create.js');
 const noteEditRouter = require('./user/note/edit.js');
