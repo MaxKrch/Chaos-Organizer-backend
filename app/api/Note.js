@@ -69,8 +69,8 @@ class Note {
 				id: data.note.id,
 				text: data.note.text,
 				savedOnServer: true, 
-				favorite: false,
-				pinned: false,
+				favorite: data.note.favorite,
+				pinned: data.note.pinned,
 				attachment: {
 				},
 				tags: [],
